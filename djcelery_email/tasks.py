@@ -41,7 +41,7 @@ def send_emails(messages, backend_kwargs):
         conn.open()
     except Exception as e:
         conn = None
-        logger.warning("Failed to estabilish connection to send email (%r)" % e)
+        logger.warning("Failed to establish connection to send emails (%r)" % e)
         send_emails.retry([messages, backend_kwargs], exc=e, throw=False)
 
     if conn:
