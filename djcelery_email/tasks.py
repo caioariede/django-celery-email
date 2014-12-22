@@ -36,21 +36,27 @@ def send_emails(messages, backend_kwargs):
     if isinstance(messages, dict):
         messages = [messages]
 
-    conn = get_connection(backend=settings.CELERY_EMAIL_BACKEND, **backend_kwargs)
-    conn.open()
+    try:
+        conn = get_connection(backend=settings.CELERY_EMAIL_BACKEND, **backend_kwargs)
+        conn.open()
+    except Exception as e:
+        conn = None
+        logger.warning("Failed to estabilish connection to send email (%r)" % e)
+        send_emails.retry([messages, backend_kwargs], exc=e, throw=False)
 
-    for message in messages:
-        try:
-            conn.send_messages([from_dict(message)])
-            logger.debug("Successfully sent email message to %r.", message['to'])
-        except Exception as e:
-            # Not expecting any specific kind of exception here because it
-            # could be any number of things, depending on the backend
-            logger.warning("Failed to send email message to %r, retrying. (%r)",
-                           message['to'], e)
-            send_emails.retry([[message], backend_kwargs], exc=e, throw=False)
+    if conn:
+        for message in messages:
+            try:
+                conn.send_messages([from_dict(message)])
+                logger.debug("Successfully sent email message to %r.", message['to'])
+            except Exception as e:
+                # Not expecting any specific kind of exception here because it
+                # could be any number of things, depending on the backend
+                logger.warning("Failed to send email message to %r, retrying. (%r)",
+                               message['to'], e)
+                send_emails.retry([[message], backend_kwargs], exc=e, throw=False)
 
-    conn.close()
+        conn.close()
 
 
 # backwards compatibility
